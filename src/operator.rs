@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
-use nalgebra::{DMatrix, DMatrixView, Matrix3, Vector2};
+use nalgebra::{DMatrix, DMatrixView, Matrix3, Matrix4, Matrix5, Vector2};
 
-use crate::kernels;
+use crate::kernels::{self, EmbossKind};
 
 #[derive(Clone)]
 pub struct Operator {
@@ -84,10 +84,24 @@ impl Operator {
 
         Self { r, g, b }
     }
+
+    pub fn emboss(&self, kind: EmbossKind) -> Operator {
+        let kernel = kernels::emboss(kind);
+
+        let r = emboss(&self.r, kernel.as_view());
+        let b = emboss(&self.b, kernel.as_view());
+        let g = emboss(&self.g, kernel.as_view());
+
+        Self { r, g, b }
+    }
 }
 
 pub fn box_blur(matrix: &DMatrix<u8>, kernel: &DMatrix<f32>) -> DMatrix<u8> {
     apply_convolution(matrix, kernel.as_view(), identity_norm())
+}
+
+fn emboss(matrix: &DMatrix<u8>, kernel: DMatrixView<f32>) -> DMatrix<u8> {
+    apply_convolution(matrix, kernel, |p| p + 128.0)
 }
 
 pub fn gaussian_blur(

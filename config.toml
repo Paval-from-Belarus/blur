@@ -1,0 +1,5 @@
+box_radius = 10
+gaussian_radius = 10
+emboss_kind = "edge"
+image = "images/tower.png"
+

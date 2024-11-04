@@ -34,3 +34,41 @@ pub fn box_kernel(radius: usize) -> DMatrix<f32> {
     let size = 2 * radius;
     DMatrix::from_element(size, size, 1.0 / (size * size) as f32)
 }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EmbossKind {
+    Left,
+    Right,
+    Edge,
+    Application,
+}
+
+#[rustfmt::skip]
+pub fn emboss(kind: EmbossKind) -> DMatrix<f32> {
+    match kind {
+        EmbossKind::Left => DMatrix::from_row_slice(3, 3, &[
+            0.0, 0.0, -1.0,
+            0.0, 0.0, 0.0,
+            1.0, 0.0, 0.0,
+        ]),
+        EmbossKind::Right => DMatrix::from_row_slice(3, 3, &[
+            -1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0,
+        ]),
+        EmbossKind::Edge => DMatrix::from_row_slice(5, 5, &[
+            -1.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, -1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 1.0,
+        ]),
+        EmbossKind::Application => DMatrix::from_row_slice(3, 3, &[
+            -2.0, -1.0, 0.0,
+            -1.0, 1.0, 1.0,
+            0.0, 1.0, 2.0
+
+        ]),
+    }
+}
