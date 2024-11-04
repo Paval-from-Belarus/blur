@@ -1,6 +1,8 @@
 pub mod kernels;
 mod operator;
 
+use std::time::Instant;
+
 use image::open;
 use kernels::EmbossKind;
 
@@ -8,6 +10,7 @@ use kernels::EmbossKind;
 pub struct Config {
     pub box_radius: usize,
     pub gaussian_radius: usize,
+    pub median_radius: usize,
     pub emboss_kind: EmbossKind,
     pub image: String,
 }
@@ -42,6 +45,16 @@ fn main() {
         .to_image()
         .save("sobel_blur.png")
         .unwrap();
+
+    let time = Instant::now();
+
+    operator
+        .median(config.median_radius)
+        .to_image()
+        .save("median_blur.png")
+        .unwrap();
+
+    println!("Elapsed: {}", time.elapsed().as_millis());
 
     operator
         .emboss(config.emboss_kind)

@@ -85,12 +85,22 @@ impl Operator {
         Self { r, g, b }
     }
 
+    #[must_use]
     pub fn emboss(&self, kind: EmbossKind) -> Operator {
         let kernel = kernels::emboss(kind);
 
         let r = emboss(&self.r, kernel.as_view());
         let b = emboss(&self.b, kernel.as_view());
         let g = emboss(&self.g, kernel.as_view());
+
+        Self { r, g, b }
+    }
+
+    #[must_use]
+    pub fn median(&self, radius: usize) -> Operator {
+        let r = median_blur(&self.r, radius);
+        let b = median_blur(&self.b, radius);
+        let g = median_blur(&self.g, radius);
 
         Self { r, g, b }
     }
@@ -109,6 +119,43 @@ pub fn gaussian_blur(
     kernel: &DMatrix<f32>,
 ) -> DMatrix<u8> {
     apply_convolution(matrix, kernel.as_view(), kernel_sum(kernel.as_view()))
+}
+
+pub fn median_blur(matrix: &DMatrix<u8>, kernel_radius: usize) -> DMatrix<u8> {
+    let (height, width) = (matrix.nrows(), matrix.ncols());
+
+    let kernel_size = 2 * kernel_radius;
+
+    let mut result = DMatrix::zeros(height, width);
+
+    let mut pixels = DMatrix::zeros(kernel_size, kernel_size);
+
+    for y in 0..height {
+        for x in 0..width {
+            // Apply the kernel to the current pixel
+            for ky in 0..kernel_size {
+                for kx in 0..kernel_size {
+                    let y_index = (y as isize
+                        + (ky as isize - kernel_radius as isize))
+                        .clamp(0, (height - 1) as isize)
+                        as usize;
+                    let x_index = (x as isize
+                        + (kx as isize - kernel_radius as isize))
+                        .clamp(0, (width - 1) as isize)
+                        as usize;
+
+                    let pixel = matrix[(y_index, x_index)];
+                    pixels[(ky, kx)] = pixel;
+                }
+            }
+
+            pixels.as_mut_slice().sort_unstable();
+
+            result[(y, x)] = pixels[pixels.len() / 2];
+        }
+    }
+
+    result
 }
 
 pub fn sobel_blur(matrix: &DMatrix<u8>) -> DMatrix<u8> {
