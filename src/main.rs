@@ -39,7 +39,11 @@ fn main() {
 
     let operator = operator::Operator::from_image(&img);
 
-    operator.box_blur().to_image().save("box_blur.png").unwrap();
+    operator
+        .box_blur(3)
+        .to_image()
+        .save("box_blur.png")
+        .unwrap();
 
     operator
         .gaussian_blur(5)

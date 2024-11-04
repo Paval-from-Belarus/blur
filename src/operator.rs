@@ -1,5 +1,5 @@
 use image::{Rgba, RgbaImage};
-use nalgebra::{DMatrix, DMatrixView, Matrix3};
+use nalgebra::{DMatrix, DMatrixView, Matrix3, Vector2};
 
 use crate::kernels;
 
@@ -55,10 +55,12 @@ impl Operator {
     }
 
     #[must_use]
-    pub fn box_blur(&self) -> Operator {
-        let r = box_blur(&self.r);
-        let b = box_blur(&self.b);
-        let g = box_blur(&self.g);
+    pub fn box_blur(&self, radius: usize) -> Operator {
+        let kernel = kernels::box_kernel(radius);
+
+        let r = box_blur(&self.r, &kernel);
+        let b = box_blur(&self.b, &kernel);
+        let g = box_blur(&self.g, &kernel);
 
         Self { r, g, b }
     }
@@ -84,45 +86,65 @@ impl Operator {
     }
 }
 
-pub fn box_blur(matrix: &DMatrix<u8>) -> DMatrix<u8> {
-    let kernel = Matrix3::from_element(1.0 / 9.0);
-
-    apply_convolution(matrix, kernel.as_view())
+pub fn box_blur(matrix: &DMatrix<u8>, kernel: &DMatrix<f32>) -> DMatrix<u8> {
+    apply_convolution(matrix, kernel.as_view(), identity_norm())
 }
 
 pub fn gaussian_blur(
     matrix: &DMatrix<u8>,
     kernel: &DMatrix<f32>,
 ) -> DMatrix<u8> {
-    apply_convolution(matrix, kernel.as_view())
+    apply_convolution(matrix, kernel.as_view(), kernel_sum(kernel.as_view()))
 }
 
 pub fn sobel_blur(matrix: &DMatrix<u8>) -> DMatrix<u8> {
-    let sobel_x_kernel =
-        Matrix3::new(-1.0, 0.0, 1.0, -2.0, 0.0, 2.0, -1.0, 0.0, 1.0);
-    let sobel_y_kernel =
-        Matrix3::new(-1.0, -2.0, -1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 1.0);
+    let sobel_x_kernel = Matrix3::from_row_slice(&[
+        -1.0, 0.0, 1.0, -2.0, 0.0, 2.0, -1.0, 0.0, 1.0,
+    ]);
+    // Matrix3::new(-1.0, 0.0, 1.0, -2.0, 0.0, 2.0, -1.0, 0.0, 1.0);
+    let sobel_y_kernel = Matrix3::from_row_slice(&[
+        1.0, 2.0, 1.0, 0.0, 0.0, 0.0, -1.0, -2.0, -1.0,
+    ]);
+    // Matrix3::new(-1.0, -2.0, -1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 1.0);
 
-    let sobel_x = apply_convolution(matrix, sobel_x_kernel.as_view());
-    let sobel_y = apply_convolution(matrix, sobel_y_kernel.as_view());
+    let (height, width) = (matrix.nrows(), matrix.ncols());
 
-    // Комбинируем результаты оператора Собеля
-    let mut sobel_combined = DMatrix::zeros(matrix.nrows(), matrix.ncols());
-    for y in 0..sobel_combined.nrows() {
-        for x in 0..sobel_combined.ncols() {
-            let value = ((sobel_x[(y, x)] as f32).powi(2)
-                + (sobel_y[(y, x)] as f32).powi(2))
-            .sqrt();
-            sobel_combined[(y, x)] = value.clamp(0.0, 255.0) as u8;
+    let mut result = DMatrix::zeros(height, width);
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut sum_x = 0.0;
+            let mut sum_y = 0.0;
+
+            for i in -1..=1 {
+                for j in -1..=1 {
+                    let y1 = (i + y as isize).clamp(0, (height - 1) as isize)
+                        as usize;
+                    let x1 = (j + x as isize).clamp(0, (width - 1) as isize)
+                        as usize;
+
+                    let pixel = matrix[(y1, x1)] as f32;
+                    sum_x += pixel
+                        * sobel_x_kernel[((i + 1) as usize, (j + 1) as usize)];
+                    sum_y += pixel
+                        * sobel_y_kernel[((i + 1) as usize, (j + 1) as usize)];
+                }
+            }
+
+            let gradient = Vector2::new(sum_x, sum_y).norm();
+            // let gradient = (sum_x.powi(2) + sum_y.powi(2)).sqrt();
+
+            result[(y, x)] = gradient.clamp(0.0, 255.0) as u8;
         }
     }
 
-    sobel_combined
+    result
 }
 
-fn apply_convolution(
+fn apply_convolution<F: Fn(f32) -> f32>(
     matrix: &DMatrix<u8>,
     kernel: DMatrixView<f32>,
+    norm: F,
 ) -> DMatrix<u8> {
     assert!(kernel.is_square());
 
@@ -130,12 +152,11 @@ fn apply_convolution(
 
     let kernel_size = kernel.nrows();
     let kernel_radius = kernel_size / 2;
-    let kernel_sum = kernel.sum();
 
     let mut result = DMatrix::zeros(height, width);
 
-    for y in 1..(height - 1) {
-        for x in 1..(width - 1) {
+    for y in 0..height {
+        for x in 0..width {
             let mut sum = 0.0;
             // Apply the kernel to the current pixel
             for ky in 0..kernel_size {
@@ -154,9 +175,18 @@ fn apply_convolution(
                 }
             }
 
-            result[(y, x)] = (sum / kernel_sum).clamp(0.0, 255.0) as u8;
-            // result[(y, x)] = sum.clamp(0.0, 255.0) as u8;
+            result[(y, x)] = norm(sum).clamp(0.0, 255.0) as u8;
         }
     }
+
     result
+}
+
+fn kernel_sum(kernel: DMatrixView<f32>) -> impl Fn(f32) -> f32 {
+    let sum = kernel.sum();
+    move |p| p / sum
+}
+
+fn identity_norm() -> impl Fn(f32) -> f32 {
+    |p| p
 }

@@ -29,3 +29,8 @@ pub fn gaussian(radius: usize) -> DMatrix<f32> {
 
     kernel
 }
+
+pub fn box_kernel(radius: usize) -> DMatrix<f32> {
+    let size = 2 * radius;
+    DMatrix::from_element(size, size, 1.0 / (size * size) as f32)
+}
