@@ -23,7 +23,7 @@ fn main() {
         .expect("Failed to open image")
         .into_rgba8();
 
-    let operator = operator::Operator::from_image(&img);
+    let operator = operator::Operator::from_rgba(&img);
 
     operator
         .box_blur(config.box_radius)

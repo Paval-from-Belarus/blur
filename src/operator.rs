@@ -1,5 +1,5 @@
 use image::{Rgba, RgbaImage};
-use nalgebra::{DMatrix, DMatrixView, Matrix3, Matrix4, Matrix5, Vector2};
+use nalgebra::{DMatrix, DMatrixView, Matrix3, Vector2};
 
 use crate::kernels::{self, EmbossKind};
 
@@ -11,7 +11,7 @@ pub struct Operator {
 }
 
 impl Operator {
-    pub fn from_image(image: &RgbaImage) -> Self {
+    pub fn from_rgba(image: &RgbaImage) -> Self {
         let (width, height) = image.dimensions();
         let mut r = DMatrix::zeros(height as usize, width as usize);
         let mut g = DMatrix::zeros(height as usize, width as usize);
